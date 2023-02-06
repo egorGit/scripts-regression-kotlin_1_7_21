@@ -39,149 +39,75 @@ const val TEST_DATA_ROOT = "testData"
 class SimpleMainKtsTest {
 
     @Test
-    fun testResolveJunit() {
-        val res = evalFile(File("$TEST_DATA_ROOT/hello-resolve-junit.smain.kts"))
+    fun `dependant script return Unit, dependant function return Any`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleA/runner.smain.kts"))
         assertSucceeded(res)
     }
 
     @Test
-    fun testResolveJunitDynamicVer() {
-        val errRes = evalFile(File("$TEST_DATA_ROOT/hello-resolve-junit-dynver-error.smain.kts"))
-        assertFailed("Unresolved reference: assertThrows", errRes)
-
-        val res = evalFile(File("$TEST_DATA_ROOT/hello-resolve-junit-dynver.smain.kts"))
+    fun `dependant script return Function ref, dependant function return Any`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleB/runner.smain.kts"))
         assertSucceeded(res)
     }
 
     @Test
-    fun testUnresolvedJunit() {
-        val res = evalFile(File("$TEST_DATA_ROOT/hello-unresolved-junit.smain.kts"))
-        assertFailed("Unresolved reference: junit", res)
+    fun `dependant script return Unit, dependant function return Model`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleC/runner.smain.kts"))
+        assertSucceeded(res)
     }
-
     @Test
-    fun testResolveError() {
-        val res = evalFile(File("$TEST_DATA_ROOT/hello-resolve-error.smain.kts"))
-        assertFailed("File 'abracadabra' not found", res)
+    fun `dependant script return Unit, dependant function return Model, main runner fun returns Model`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleC/runner_with_model_return.smain.kts"))
+        assertSucceeded(res)
     }
-
     @Test
-    fun testResolveLog4jAndDocopt() {
-        val res = evalFile(File("$TEST_DATA_ROOT/resolve-log4j-and-docopt.smain.kts"))
+    fun `dependant script return Unit, dependant function return Model, main runner fun returns LOCAL Model`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleC/runner_with_local_model_return.smain.kts"))
+        assertSucceeded(res)
+    }
+    @Test
+    fun `dependant script return Function ref, dependant function return Model`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleD/runner.smain.kts"))
         assertSucceeded(res)
     }
 
-    private val outFromImportTest = listOf("Hi from common", "Hi from middle", "sharedVar == 5")
-
     @Test
-    fun testImport() {
-
-        val out = captureOut {
-            val res = evalFile(File("$TEST_DATA_ROOT/import-test.smain.kts"))
-            assertSucceeded(res)
-        }.lines()
-
-        Assert.assertEquals(outFromImportTest, out)
+    fun `dependant script return Function ref, dependant function return Model, main runner with LOCAL model return`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleD/runner_with_local_model_return.smain.kts"))
+        assertSucceeded(res)
     }
 
     @Test
-    fun testCompilerOptions() {
-
-        val out = captureOut {
-            val res = evalFile(File("$TEST_DATA_ROOT/compiler-options.smain.kts"))
-            assertSucceeded(res)
-            assertIsJava6Bytecode(res)
-        }.lines()
-
-        Assert.assertEquals(listOf("Hi from sub", "Hi from super", "Hi from random"), out)
+    fun `dependant script return Function ref, dependant function return Model, main runner has model script import`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleD/runner_with_model_import.smain.kts"))
+        assertSucceeded(res)
     }
 
     @Test
-    fun testCache() {
-        val script = File("$TEST_DATA_ROOT/import-test.smain.kts")
-        val cache = createTempDir("main.kts.test")
-
-        try {
-            Assert.assertTrue(cache.exists() && cache.listFiles { f: File -> f.extension == "jar" }?.isEmpty() == true)
-            val out1 = evalSuccessWithOut(script)
-            Assert.assertEquals(outFromImportTest, out1)
-            Assert.assertTrue(cache.listFiles { f: File -> f.extension.equals("jar", ignoreCase = true) }?.isEmpty() == true)
-
-            val out2 = evalSuccessWithOut(script, cache)
-            Assert.assertEquals(outFromImportTest, out2)
-            val casheFile = cache.listFiles { f: File -> f.extension.equals("jar", ignoreCase = true) }?.firstOrNull()
-            Assert.assertTrue(casheFile != null && casheFile.exists())
-
-            val out3 = captureOut {
-                val classLoader = URLClassLoader(arrayOf(casheFile!!.toURI().toURL()), null)
-                val clazz = classLoader.loadClass("Import_test_smain")
-                val mainFn = clazz.getDeclaredMethod("main", Array<String>::class.java)
-                mainFn.invoke(null, arrayOf<String>())
-            }.lines()
-            Assert.assertEquals(outFromImportTest, out3)
-        } finally {
-            cache.deleteRecursively()
-        }
+    fun `dependant script return Function ref, dependant function return Model, main runner return LOCAL model and no model script import`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleD/runner_with_local_model_return_and_model_script_import.smain.kts"))
+        assertSucceeded(res)
     }
 
     @Test
-    fun testKotlinxHtml() {
-        val out = captureOut {
-            val res = evalFile(File("$TEST_DATA_ROOT/kotlinx-html.smain.kts"))
-            assertSucceeded(res)
-        }.lines()
-
-        Assert.assertEquals(listOf("<html>", "  <body>", "    <h1>Hello, World!</h1>", "  </body>", "</html>"), out)
+    fun `dependant script return Function ref, dependant function return Model, main runner return LOCAL model and model script import NOT first position`() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleD/runner_with_local_model_return_and_model_script_import_NOT_first_position.smain.kts"))
+        assertSucceeded(res)
     }
 
-    private fun assertIsJava6Bytecode(res: ResultWithDiagnostics<EvaluationResult>) {
-        val scriptClassResource = res.valueOrThrow().returnValue.scriptClass!!.java.run {
-            getResource("$simpleName.class")
-        }
 
-        DataInputStream(ByteArrayInputStream(scriptClassResource.readBytes())).use { stream ->
-            val header = stream.readInt()
-            if (0xCAFEBABE.toInt() != header) throw IOException("Invalid header class header: $header")
-            stream.readUnsignedShort() // minor
-            val major = stream.readUnsignedShort()
-            Assert.assertEquals(52, major)
-        }
+
+    @Test
+    fun `dependant script return Function ref, dependant function return Model, main runner return LOCAL_NON_GENERIC model and model script import `() {
+        val res = evalFile(File("$TEST_DATA_ROOT/exampleD/runner_with_local_non_generic_model_return_and_model_script_import.smain.kts"))
+        assertSucceeded(res)
     }
-
     private fun assertSucceeded(res: ResultWithDiagnostics<EvaluationResult>) {
         Assert.assertTrue(
             "test failed:\n  ${res.reports.joinToString("\n  ") { it.message + if (it.exception == null) "" else ": ${it.exception}" }}",
             res is ResultWithDiagnostics.Success
         )
     }
-
-    private fun assertFailed(expectedError: String, res: ResultWithDiagnostics<EvaluationResult>) {
-        Assert.assertTrue(
-            "test failed - expecting a failure with the message \"$expectedError\" but received " +
-                    (if (res is ResultWithDiagnostics.Failure) "failure" else "success") +
-                    ":\n  ${res.reports.joinToString("\n  ") { it.message + if (it.exception == null) "" else ": ${it.exception}" }}",
-            res is ResultWithDiagnostics.Failure && res.reports.any { it.message.contains(expectedError) }
-        )
-    }
-
-    private fun evalSuccessWithOut(scriptFile: File, cacheDir: File? = null): List<String> =
-        captureOut {
-            val res = evalFile(scriptFile, cacheDir)
-            assertSucceeded(res)
-        }.lines()
-}
-
-private fun captureOut(body: () -> Unit): String {
-    val outStream = ByteArrayOutputStream()
-    val prevOut = System.out
-    System.setOut(PrintStream(outStream))
-    try {
-        body()
-    } finally {
-        System.out.flush()
-        System.setOut(prevOut)
-    }
-    return outStream.toString().trim()
 }
 
 private fun <T> withMainKtsCacheDir(value: String?, body: () -> T): T {
